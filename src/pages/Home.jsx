@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { Link } from 'react-router-dom';
+import { Link, useNavigate } from 'react-router-dom';
 import { FileUpload } from '../components/FileUpload';
 import { ATSAnalysis } from '../components/ATSAnalysis';
 import { analyzeResume, improveResume } from '../services/ai';
@@ -9,8 +9,11 @@ import { motion, AnimatePresence } from 'framer-motion';
 import { Sparkles, ArrowRight, ShieldCheck, Zap, Globe, Star, LogIn } from 'lucide-react';
 import { useAuth } from '../context/AuthContext';
 
-const FeatureCard = ({ icon: Icon, title, description }) => (
-  <div className="glass-morphism p-8 rounded-3xl space-y-4 hover:scale-105 transition-transform duration-300">
+const FeatureCard = ({ icon: Icon, title, description, onClick }) => (
+  <div 
+    onClick={onClick}
+    className="glass-morphism p-8 rounded-3xl space-y-4 hover:scale-105 transition-transform duration-300 cursor-pointer"
+  >
     <div className="p-3 rounded-2xl bg-primary-500/20 w-fit">
       <Icon className="w-6 h-6 text-primary-400" />
     </div>
@@ -20,6 +23,7 @@ const FeatureCard = ({ icon: Icon, title, description }) => (
 );
 
 const Home = () => {
+  const navigate = useNavigate();
   const { currentUser } = useAuth();
   const [analysisData, setAnalysisData] = useState(null);
   const [improvedData, setImprovedData] = useState(null);
@@ -211,6 +215,7 @@ const Home = () => {
               icon={Globe}
               title="Job Matching"
               description="Find perfect roles based on your experience and get customized resume versions for each job posting."
+              onClick={() => navigate('/jobs')}
             />
           </div>
         </div>

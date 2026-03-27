@@ -43,6 +43,9 @@ export const Navbar = () => {
             <Link to="/jobs" className="text-gray-400 hover:text-white transition-colors">
               Find Jobs
             </Link>
+            <Link to="/internships" className="text-gray-400 hover:text-white transition-colors">
+              Internships
+            </Link>
             
             {currentUser ? (
               <div className="flex items-center gap-4">
@@ -112,6 +115,13 @@ export const Navbar = () => {
                 className="block text-gray-400 hover:text-white transition-colors py-2"
               >
                 Find Jobs
+              </Link>
+              <Link
+                to="/internships"
+                onClick={() => setIsMenuOpen(false)}
+                className="block text-gray-400 hover:text-white transition-colors py-2"
+              >
+                Internships
               </Link>
               
               {currentUser ? (
