@@ -1,11 +1,13 @@
 import React, { useState } from 'react';
+import { Link } from 'react-router-dom';
 import { FileUpload } from '../components/FileUpload';
 import { ATSAnalysis } from '../components/ATSAnalysis';
 import { analyzeResume, improveResume } from '../services/ai';
 import { extractTextFromPdf } from '../utils/pdfParser';
 import { ImprovedResume } from '../components/ImprovedResume';
 import { motion, AnimatePresence } from 'framer-motion';
-import { Sparkles, ArrowRight, ShieldCheck, Zap, Globe, Star } from 'lucide-react';
+import { Sparkles, ArrowRight, ShieldCheck, Zap, Globe, Star, LogIn } from 'lucide-react';
+import { useAuth } from '../context/AuthContext';
 
 const FeatureCard = ({ icon: Icon, title, description }) => (
   <div className="glass-morphism p-8 rounded-3xl space-y-4 hover:scale-105 transition-transform duration-300">
@@ -18,6 +20,7 @@ const FeatureCard = ({ icon: Icon, title, description }) => (
 );
 
 const Home = () => {
+  const { currentUser } = useAuth();
   const [analysisData, setAnalysisData] = useState(null);
   const [improvedData, setImprovedData] = useState(null);
   const [isLoading, setIsLoading] = useState(false);
@@ -136,10 +139,20 @@ const Home = () => {
                   </p>
 
                   <div className="flex flex-wrap items-center justify-center gap-4 pt-4">
-                    <button className="px-8 py-4 rounded-2xl premium-gradient text-white font-bold hover:shadow-[0_0_20px_rgba(14,165,233,0.4)] transition-all flex items-center gap-2 group">
-                      Get Started Free
-                      <ArrowRight className="w-5 h-5 group-hover:translate-x-1 transition-transform" />
-                    </button>
+                    {currentUser ? (
+                      <button className="px-8 py-4 rounded-2xl premium-gradient text-white font-bold hover:shadow-[0_0_20px_rgba(14,165,233,0.4)] transition-all flex items-center gap-2 group">
+                        Get Started Free
+                        <ArrowRight className="w-5 h-5 group-hover:translate-x-1 transition-transform" />
+                      </button>
+                    ) : (
+                      <Link
+                        to="/signup"
+                        className="px-8 py-4 rounded-2xl premium-gradient text-white font-bold hover:shadow-[0_0_20px_rgba(14,165,233,0.4)] transition-all flex items-center gap-2 group"
+                      >
+                        Get Started Free
+                        <ArrowRight className="w-5 h-5 group-hover:translate-x-1 transition-transform" />
+                      </Link>
+                    )}
                     <button className="px-8 py-4 rounded-2xl bg-white/5 border border-white/10 text-white font-bold hover:bg-white/10 transition-all">
                       Learn More
                     </button>
@@ -197,7 +210,7 @@ const Home = () => {
             <FeatureCard
               icon={Globe}
               title="Job Matching"
-              description="Coming soon: Find the perfect roles based on your experience and customized resume versions."
+              description="Find perfect roles based on your experience and get customized resume versions for each job posting."
             />
           </div>
         </div>

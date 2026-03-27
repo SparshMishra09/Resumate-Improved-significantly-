@@ -1,7 +1,8 @@
 import axios from 'axios';
 import { z } from 'zod';
 
-const OPENROUTER_API_KEY = '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';
+// OpenRouter API Key - from environment variable
+const OPENROUTER_API_KEY = import.meta.env.VITE_OPENROUTER_API_KEY || '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';
 
 const ResumeSchema = z.object({
   name: z.string(),
@@ -34,7 +35,7 @@ export const analyzeResume = async (resumeText) => {
   const prompt = `
     Analyze the following resume text and provide a non-fraudulent ATS score (0-100) and professional improvement suggestions.
     Return ONLY valid JSON.
-    
+
     RULES:
     - Do NOT include any introductory or concluding text.
     - Use ONLY JSON format.
@@ -72,10 +73,13 @@ export const analyzeResume = async (resumeText) => {
   `;
 
   try {
+    console.log("Sending request to OpenRouter...");
+    console.log("API Key starts with:", OPENROUTER_API_KEY.substring(0, 15) + "...");
+    
     const response = await axios.post(
       'https://openrouter.ai/api/v1/chat/completions',
       {
-        model: 'google/gemini-2.0-flash-001',
+        model: 'openrouter/auto',
         messages: [{ role: 'user', content: prompt }],
         response_format: { type: "json_object" }
       },
@@ -83,16 +87,25 @@ export const analyzeResume = async (resumeText) => {
         headers: {
           'Authorization': `Bearer ${OPENROUTER_API_KEY}`,
           'Content-Type': 'application/json',
-          'HTTP-Referer': 'https://resumate.ai',
+          'HTTP-Referer': 'http://localhost:5173',
           'X-Title': 'Resumate',
         },
       }
     );
 
+    console.log("Full API Response:", response.data);
+
+    // Check for API errors
+    if (response.data.error) {
+      throw new Error(response.data.error.message || "API request failed");
+    }
+
     let content = response.data.choices[0].message.content;
     if (!content) throw new Error("The AI returned an empty response. Please try again.");
     const cleanedContent = cleanJSON(content);
-    
+
+    console.log("AI Response:", cleanedContent);
+
     try {
       const data = JSON.parse(cleanedContent);
       return ResumeSchema.parse(data);
@@ -109,8 +122,23 @@ export const analyzeResume = async (resumeText) => {
     }
   } catch (error) {
     console.error("AI Analysis Error:", error);
-    if (error.response?.status === 401) throw new Error("API Key configuration error.");
-    if (error.response?.status === 429) throw new Error("Too many requests.");
+    console.error("Error Response:", error.response?.data);
+    console.error("Error Status:", error.response?.status);
+    console.error("Error Headers:", error.response?.headers);
+    
+    if (error.response?.status === 401) {
+      const errorData = error.response?.data;
+      throw new Error(`API Key error: ${JSON.stringify(errorData)}`);
+    }
+    if (error.response?.status === 403) {
+      const errorData = error.response?.data;
+      throw new Error(`Access Forbidden: ${JSON.stringify(errorData)}. Check domain restrictions in OpenRouter dashboard.`);
+    }
+    if (error.response?.status === 429) throw new Error("Too many requests. Please wait a moment.");
+    if (error.response?.status === 402) throw new Error("API key has insufficient credits.");
+    if (error.response?.data?.error?.message) {
+      throw new Error(error.response.data.error.message);
+    }
     throw error;
   }
 };
@@ -119,7 +147,7 @@ export const improveResume = async (originalData) => {
   const prompt = `
     Improve the following resume content to achieve a better ATS score and professional impact.
     Return ONLY valid JSON.
-    
+
     RULES:
     - Do NOT include any introductory or concluding text.
     - Use ONLY JSON format.
@@ -153,10 +181,12 @@ export const improveResume = async (originalData) => {
   `;
 
   try {
+    console.log("Sending improvement request to OpenRouter...");
+    
     const response = await axios.post(
       'https://openrouter.ai/api/v1/chat/completions',
       {
-        model: 'google/gemini-2.0-flash-001',
+        model: 'openrouter/auto',
         messages: [{ role: 'user', content: prompt }],
         response_format: { type: "json_object" }
       },
@@ -164,16 +194,25 @@ export const improveResume = async (originalData) => {
         headers: {
           'Authorization': `Bearer ${OPENROUTER_API_KEY}`,
           'Content-Type': 'application/json',
-          'HTTP-Referer': 'https://resumate.ai',
+          'HTTP-Referer': 'http://localhost:5173',
           'X-Title': 'Resumate Improvement',
         },
       }
     );
 
+    console.log("Improvement API Response:", response.data);
+
+    // Check for API errors
+    if (response.data.error) {
+      throw new Error(response.data.error.message || "API request failed");
+    }
+
     let content = response.data.choices[0].message.content;
     if (!content) throw new Error("AI returned an empty improvement response.");
     const cleanedContent = cleanJSON(content);
-    
+
+    console.log("AI Improvement Response:", cleanedContent);
+
     try {
       const data = JSON.parse(cleanedContent);
       return ResumeSchema.parse(data);
@@ -190,6 +229,22 @@ export const improveResume = async (originalData) => {
     }
   } catch (error) {
     console.error("AI Improvement Error:", error);
+    console.error("Error Response:", error.response?.data);
+    console.error("Error Status:", error.response?.status);
+    
+    if (error.response?.status === 401) {
+      const errorData = error.response?.data;
+      throw new Error(`API Key error: ${JSON.stringify(errorData)}`);
+    }
+    if (error.response?.status === 403) {
+      const errorData = error.response?.data;
+      throw new Error(`Access Forbidden: ${JSON.stringify(errorData)}. Check domain restrictions.`);
+    }
+    if (error.response?.status === 429) throw new Error("Too many requests. Please wait a moment.");
+    if (error.response?.status === 402) throw new Error("API key has insufficient credits.");
+    if (error.response?.data?.error?.message) {
+      throw new Error(error.response.data.error.message);
+    }
     throw error;
   }
 };
