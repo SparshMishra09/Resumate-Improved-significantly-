@@ -12,10 +12,27 @@ dist
 dist-ssr
 *.local
 
-# Environment variables
+# Environment variables (NEVER commit these!)
 .env
 .env.local
-.env.*.local
+.env.development
+.env.production
+.env.test
+*.env
+
+# API Keys & Secrets
+*.key
+*.pem
+*.crt
+*.p12
+*.pfx
+secrets.json
+credentials.json
+firebase-adminsdk-*.json
+
+# Test files with potential secrets
+public/test-api.html
+test-api.js
 
 # Editor directories and files
 .vscode/*
@@ -28,5 +45,6 @@ dist-ssr
 *.sln
 *.sw?
 
-# Test files with potential secrets
-public/test-api.html
+# OS files
+Thumbs.db
+.DS_Store
