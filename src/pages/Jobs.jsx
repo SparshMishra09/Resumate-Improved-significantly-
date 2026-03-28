@@ -1,13 +1,16 @@
 import React, { useState, useEffect } from 'react';
+import { useNavigate } from 'react-router-dom';
 import { motion } from 'framer-motion';
 import { Briefcase, Loader2, AlertCircle, TrendingUp } from 'lucide-react';
 import { JobCard } from '../components/JobCard';
 import { JobSearchFilter } from '../components/JobSearchFilter';
 import { JobDetailsModal } from '../components/JobDetailsModal';
 import { searchJobs, getFeaturedJobs } from '../services/jobSearch';
+import { saveJob, unsaveJob, isJobSaved } from '../services/firestore';
 import { useAuth } from '../context/AuthContext';
 
 const Jobs = () => {
+  const navigate = useNavigate();
   const { currentUser } = useAuth();
   const [jobs, setJobs] = useState([]);
   const [loading, setLoading] = useState(true);
@@ -20,11 +23,20 @@ const Jobs = () => {
     remote: false,
   });
   const [hasSearched, setHasSearched] = useState(false);
+  const [sourcesInfo, setSourcesInfo] = useState([]);
+  const [savedJobsIds, setSavedJobsIds] = useState(new Set());
 
   // Load featured jobs on mount
   useEffect(() => {
     loadFeaturedJobs();
   }, []);
+
+  // Load saved jobs when user logs in
+  useEffect(() => {
+    if (currentUser) {
+      loadSavedJobsStatus();
+    }
+  }, [currentUser]);
 
   const loadFeaturedJobs = async () => {
     setLoading(true);
@@ -44,6 +56,60 @@ const Jobs = () => {
     }
   };
 
+  const loadSavedJobsStatus = async () => {
+    if (!currentUser) return;
+    
+    try {
+      // Check which jobs are saved
+      const savedStatus = new Set();
+      for (const job of jobs) {
+        const isSaved = await isJobSaved(currentUser.uid, job.id);
+        if (isSaved) {
+          savedStatus.add(job.id);
+        }
+      }
+      setSavedJobsIds(savedStatus);
+    } catch (err) {
+      console.error('Load Saved Status Error:', err);
+    }
+  };
+
+  const handleToggleSave = async (job) => {
+    if (!currentUser) {
+      navigate('/login');
+      return;
+    }
+
+    const isCurrentlySaved = savedJobsIds.has(job.id);
+
+    try {
+      if (isCurrentlySaved) {
+        const result = await unsaveJob(currentUser.uid, job.id);
+        if (result.success) {
+          setSavedJobsIds(prev => {
+            const next = new Set(prev);
+            next.delete(job.id);
+            return next;
+          });
+        }
+      } else {
+        const result = await saveJob(currentUser.uid, job);
+        if (result.success) {
+          setSavedJobsIds(prev => new Set(prev).add(job.id));
+        } else if (!result.exists) {
+          alert('Failed to save job: ' + result.error);
+        }
+      }
+    } catch (err) {
+      console.error('Toggle Save Error:', err);
+      alert('Failed to update saved jobs');
+    }
+  };
+
+  const handleTailorClick = (job) => {
+    navigate('/convert-resume', { state: { job } });
+  };
+
   const handleSearch = async () => {
     setLoading(true);
     setError(null);
@@ -54,17 +120,20 @@ const Jobs = () => {
       console.log('Search result:', result);
       if (result.success) {
         setJobs(result.data || []);
+        setSourcesInfo(result.sources || []);
         if (result.message) {
           setError(result.message);
         }
       } else {
         setError(result.error || 'No jobs found');
         setJobs([]);
+        setSourcesInfo([]);
       }
     } catch (err) {
       console.error('Search Error:', err);
       setError('Failed to search jobs. Please try again.');
       setJobs([]);
+      setSourcesInfo([]);
     } finally {
       setLoading(false);
     }
@@ -159,13 +228,24 @@ const Jobs = () => {
               <motion.div
                 initial={{ opacity: 0, y: 20 }}
                 animate={{ opacity: 1, y: 0 }}
-                className="mb-8 flex items-center justify-between"
+                className="mb-8 flex items-center justify-between flex-wrap gap-4"
               >
                 <div className="flex items-center gap-3">
                   <TrendingUp className="w-6 h-6 text-primary-400" />
                   <h2 className="text-2xl font-bold text-white">Featured Jobs</h2>
                 </div>
-                <span className="text-gray-400 text-sm">{jobs.length} jobs available</span>
+                <div className="flex items-center gap-4 flex-wrap">
+                  <span className="text-gray-400 text-sm">{jobs.length} jobs available</span>
+                  {sourcesInfo.length > 0 && (
+                    <div className="flex items-center gap-2 flex-wrap">
+                      {sourcesInfo.map((source, idx) => (
+                        <span key={idx} className="px-3 py-1 rounded-full bg-primary-500/10 border border-primary-500/20 text-primary-300 text-xs font-medium">
+                          {source}
+                        </span>
+                      ))}
+                    </div>
+                  )}
+                </div>
               </motion.div>
             )}
             
@@ -173,13 +253,24 @@ const Jobs = () => {
               <motion.div
                 initial={{ opacity: 0, y: 20 }}
                 animate={{ opacity: 1, y: 0 }}
-                className="mb-8 flex items-center justify-between"
+                className="mb-8 flex items-center justify-between flex-wrap gap-4"
               >
                 <div className="flex items-center gap-3">
                   <Briefcase className="w-6 h-6 text-primary-400" />
                   <h2 className="text-2xl font-bold text-white">Search Results</h2>
                 </div>
-                <span className="text-gray-400 text-sm">{jobs.length} jobs found</span>
+                <div className="flex items-center gap-4 flex-wrap">
+                  <span className="text-gray-400 text-sm">{jobs.length} jobs found</span>
+                  {sourcesInfo.length > 0 && (
+                    <div className="flex items-center gap-2 flex-wrap">
+                      {sourcesInfo.map((source, idx) => (
+                        <span key={idx} className="px-3 py-1 rounded-full bg-primary-500/10 border border-primary-500/20 text-primary-300 text-xs font-medium">
+                          {source}
+                        </span>
+                      ))}
+                    </div>
+                  )}
+                </div>
               </motion.div>
             )}
             
@@ -189,6 +280,10 @@ const Jobs = () => {
                   key={job.id || index}
                   job={job}
                   onSelect={setSelectedJob}
+                  isSaved={savedJobsIds.has(job.id)}
+                  onToggleSave={handleToggleSave}
+                  showTailorButton={true}
+                  onTailorClick={handleTailorClick}
                 />
               ))}
             </div>

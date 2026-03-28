@@ -5,6 +5,7 @@ import {
   updateProfile
 } from 'firebase/auth';
 import { auth } from '../config/firebase';
+import { initializeUserCredits } from './firestore';
 
 /**
  * Sign up a new user with email and password
@@ -22,7 +23,10 @@ export const signUp = async (email, password, displayName) => {
       displayName: displayName,
     });
     
-    return { success: true, user: userCredential.user };
+    // Initialize user with 1 free credit
+    await initializeUserCredits(userCredential.user.uid, email, displayName);
+    
+    return { success: true, user: userCredential.user, credits: 1 };
   } catch (error) {
     console.error('Sign up error:', error);
     

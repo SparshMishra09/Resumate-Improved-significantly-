@@ -7,11 +7,14 @@ import Login from './pages/Login';
 import Signup from './pages/Signup';
 import Jobs from './pages/Jobs';
 import Internships from './pages/Internships';
+import ConvertResume from './pages/ConvertResume';
+import SavedJobs from './pages/SavedJobs';
+import About from './pages/About';
 
 function App() {
   return (
-    <AuthProvider>
-      <Router>
+    <Router>
+      <AuthProvider>
         <div className="min-h-screen bg-[#0f172a]">
           <Navbar />
           <Routes>
@@ -20,10 +23,13 @@ function App() {
             <Route path="/signup" element={<Signup />} />
             <Route path="/jobs" element={<Jobs />} />
             <Route path="/internships" element={<Internships />} />
+            <Route path="/convert-resume" element={<ConvertResume />} />
+            <Route path="/saved-jobs" element={<SavedJobs />} />
+            <Route path="/about" element={<About />} />
           </Routes>
         </div>
-      </Router>
-    </AuthProvider>
+      </AuthProvider>
+    </Router>
   );
 }
 

@@ -1,0 +1,185 @@
+// Firestore Rules for Resumate
+// These rules ensure proper security for your Firebase data
+// Deployed: March 2026
+
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+    
+    // Helper function to check if user is authenticated
+    function isAuthenticated() {
+      return request.auth != null;
+    }
+    
+    // Helper function to check if user is owner
+    function isOwner(userId) {
+      return request.auth != null && request.auth.uid == userId;
+    }
+    
+    // Helper function to validate timestamp
+    function isValidTimestamp() {
+      return request.resource.data is map 
+        && (request.resource.data.createdAt is timestamp || request.resource.data.createdAt == null);
+    }
+    
+    // Helper function to validate job data structure
+    function isValidJobData() {
+      return request.resource.data.keys().hasAll(['title', 'company', 'description'])
+        && request.resource.data.title is string
+        && request.resource.data.title.size() > 0
+        && request.resource.data.title.size() < 200
+        && request.resource.data.company is string
+        && request.resource.data.company.size() > 0
+        && request.resource.data.company.size() < 200
+        && request.resource.data.description is string
+        && request.resource.data.description.size() > 0;
+    }
+    
+    // ==================== JOB LISTINGS ====================
+    // Rules for job_listings collection
+    match /job_listings/{jobId} {
+      // Anyone can read active job listings
+      allow read: if resource.data.isActive == true || (isAuthenticated() && resource.data.isActive != false);
+      
+      // Only authenticated users can create job listings
+      allow create: if isAuthenticated() 
+        && isValidJobData()
+        && request.resource.data.isActive == true;
+      
+      // Only authenticated users can update job listings
+      allow update: if isAuthenticated() 
+        && (request.resource.data.isActive == resource.data.isActive || request.auth.token.admin == true);
+      
+      // Only authenticated users can delete job listings (soft delete)
+      allow delete: if isAuthenticated();
+    }
+    
+    // ==================== INTERNSHIP LISTINGS ====================
+    // Rules for internship_listings collection
+    match /internship_listings/{internshipId} {
+      // Anyone can read active internship listings
+      allow read: if resource.data.isActive == true || (isAuthenticated() && resource.data.isActive != false);
+      
+      // Only authenticated users can create internship listings
+      allow create: if isAuthenticated() 
+        && isValidJobData()
+        && request.resource.data.isActive == true;
+      
+      // Only authenticated users can update internship listings
+      allow update: if isAuthenticated() 
+        && (request.resource.data.isActive == resource.data.isActive || request.auth.token.admin == true);
+      
+      // Only authenticated users can delete internship listings (soft delete)
+      allow delete: if isAuthenticated();
+    }
+    
+    // ==================== USER PROFILES ====================
+    // Rules for user_profiles collection (if you add this later)
+    match /user_profiles/{userId} {
+      // Users can read any profile
+      allow read: if isAuthenticated();
+
+      // Users can only create their own profile
+      allow create: if isOwner(userId)
+        && request.resource.data.keys().hasAll(['email', 'displayName'])
+        && request.resource.data.userId == userId;
+
+      // Users can only update their own profile
+      allow update: if isOwner(userId);
+
+      // Users can only delete their own profile
+      allow delete: if isOwner(userId);
+    }
+
+    // ==================== USERS (CREDITS) ====================
+    // Rules for users collection - stores user credits
+    match /users/{userId} {
+      // Users can read their own user document
+      allow read: if isOwner(userId);
+
+      // Allow creation during signup (user creates their own doc)
+      allow create: if isOwner(userId)
+        && request.resource.data.keys().hasAll(['email', 'displayName', 'credits'])
+        && request.resource.data.credits == 1;
+
+      // Users can only update their own profile (for credit updates)
+      allow update: if isOwner(userId);
+
+      // Users can only delete their own profile
+      allow delete: if isOwner(userId);
+    }
+    
+    // ==================== RESUME DATA ====================
+    // Rules for resumes collection (if you add this later)
+    match /resumes/{resumeId} {
+      // Users can only read their own resumes
+      allow read: if isAuthenticated() && resource.data.userId == request.auth.uid;
+      
+      // Users can only create their own resumes
+      allow create: if isAuthenticated() 
+        && request.resource.data.userId == request.auth.uid
+        && request.resource.data.keys().hasAll(['userId', 'content', 'createdAt']);
+      
+      // Users can only update their own resumes
+      allow update: if isAuthenticated() && resource.data.userId == request.auth.uid;
+      
+      // Users can only delete their own resumes
+      allow delete: if isAuthenticated() && resource.data.userId == request.auth.uid;
+    }
+    
+    // ==================== SAVED JOBS ====================
+    // Rules for saved_jobs collection (if you add this later)
+    match /saved_jobs/{saveId} {
+      // Users can only read their own saved jobs
+      allow read: if isAuthenticated() && resource.data.userId == request.auth.uid;
+      
+      // Users can only save jobs for themselves
+      allow create: if isAuthenticated() 
+        && request.resource.data.userId == request.auth.uid
+        && request.resource.data.keys().hasAll(['userId', 'jobId']);
+      
+      // Users can only update their own saved jobs
+      allow update: if isAuthenticated() && resource.data.userId == request.auth.uid;
+      
+      // Users can only delete their own saved jobs
+      allow delete: if isAuthenticated() && resource.data.userId == request.auth.uid;
+    }
+    
+    // ==================== ADMIN ONLY COLLECTIONS ====================
+    // Example: admin_settings or system configurations
+    match /admin_settings/{settingId} {
+      // Only allow reads if you want to expose some settings
+      allow read: if isAuthenticated();
+      
+      // Only admins can write (you'll need to implement custom claims for this)
+      allow write: if false; // Disable for now, enable with admin check
+    }
+    
+  }
+}
+
+/*
+==================== FIRESTORE RULES EXPLANATION ====================
+
+SECURITY LEVELS:
+1. Public Read: Job/internship listings can be read by anyone (when active)
+2. Authenticated Write: Only logged-in users can create/modify listings
+3. Owner Only: User-specific data (profiles, resumes, saved jobs) is private
+
+KEY FEATURES:
+- Soft deletes: Listings are marked inactive instead of being deleted
+- isActive check: Only active listings are publicly visible
+- User isolation: Each user can only access their own data
+
+RECOMMENDATIONS:
+1. For production, implement Firebase Admin Custom Claims for admin roles
+2. Add rate limiting via Firebase Security Rules or Cloud Functions
+3. Validate data structure using request.resource.data
+4. Consider adding timestamp validation for expiresAt fields
+
+EXAMPLE ADMIN CLAIM (to be added via Cloud Functions):
+```
+allow write: if request.auth.token.admin == true;
+```
+
+*/

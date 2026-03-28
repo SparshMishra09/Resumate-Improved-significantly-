@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import { motion } from 'framer-motion';
 import { Mail, Lock, User, UserPlus, ArrowLeft, Eye, EyeOff } from 'lucide-react';
@@ -20,8 +20,14 @@ const Signup = () => {
   const [showConfirmPassword, setShowConfirmPassword] = useState(false);
 
   // Redirect if already logged in
+  useEffect(() => {
+    if (currentUser) {
+      navigate('/');
+    }
+  }, [currentUser, navigate]);
+
+  // Don't render if redirecting
   if (currentUser) {
-    navigate('/');
     return null;
   }
 
@@ -53,8 +59,10 @@ const Signup = () => {
 
     try {
       const result = await signUp(formData.email, formData.password, formData.name);
-      
+
       if (result.success) {
+        // Add a small delay to ensure Firestore document is created
+        await new Promise(resolve => setTimeout(resolve, 500));
         navigate('/');
       } else {
         setError(result.error);

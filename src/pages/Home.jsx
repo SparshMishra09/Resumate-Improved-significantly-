@@ -6,8 +6,9 @@ import { analyzeResume, improveResume } from '../services/ai';
 import { extractTextFromPdf } from '../utils/pdfParser';
 import { ImprovedResume } from '../components/ImprovedResume';
 import { motion, AnimatePresence } from 'framer-motion';
-import { Sparkles, ArrowRight, ShieldCheck, Zap, Globe, Star, LogIn } from 'lucide-react';
+import { Sparkles, ArrowRight, ShieldCheck, Zap, Globe, Star, LogIn, Coins } from 'lucide-react';
 import { useAuth } from '../context/AuthContext';
+import { checkUserCredits, useCredit } from '../services/firestore';
 
 const FeatureCard = ({ icon: Icon, title, description, onClick }) => (
   <div 
@@ -30,8 +31,32 @@ const Home = () => {
   const [isLoading, setIsLoading] = useState(false);
   const [isImproving, setIsImproving] = useState(false);
   const [error, setError] = useState(null);
+  const [credits, setCredits] = useState(null);
+
+  // Check credits on mount
+  React.useEffect(() => {
+    if (currentUser) {
+      checkUserCredits(currentUser.uid).then(result => {
+        setCredits(result.credits);
+      });
+    }
+  }, [currentUser]);
 
   const handleFileSelect = async (file) => {
+    // Check authentication
+    if (!currentUser) {
+      setError('Please login or signup to use this feature. You get 1 free credit!');
+      setTimeout(() => navigate('/login'), 2000);
+      return;
+    }
+
+    // Check credits
+    const creditCheck = await checkUserCredits(currentUser.uid);
+    if (!creditCheck.hasCredits) {
+      setError('No credits remaining. Each feature requires 1 credit. Contact support for more credits.');
+      return;
+    }
+
     setIsLoading(true);
     setError(null);
     setAnalysisData(null);
@@ -39,7 +64,7 @@ const Home = () => {
     try {
       let text = '';
       const isPdf = file.type === 'application/pdf' || file.name.toLowerCase().endsWith('.pdf');
-      
+
       if (isPdf) {
         try {
           text = await extractTextFromPdf(file);
@@ -50,13 +75,20 @@ const Home = () => {
       } else {
         text = await file.text();
       }
-      
+
       if (!text || text.trim().length < 50) {
         throw new Error("The resume seems too short or empty. Please check the file content.");
       }
 
       try {
         const analysis = await analyzeResume(text);
+        
+        // Use 1 credit for ATS analysis AFTER successful analysis
+        const creditResult = await useCredit(currentUser.uid, 'ats_score');
+        if (!creditResult.success) {
+          throw new Error(creditResult.error);
+        }
+        setCredits(creditResult.credits);
         setAnalysisData(analysis);
       } catch (aiErr) {
         console.error("AI Analysis Error:", aiErr);
@@ -72,9 +104,24 @@ const Home = () => {
 
   const handleImprove = async () => {
     if (!analysisData) return;
+    
+    // Check credits
+    const creditCheck = await checkUserCredits(currentUser.uid);
+    if (!creditCheck.hasCredits) {
+      setError('No credits remaining. Resume improvement requires 1 credit.');
+      return;
+    }
+    
     setIsImproving(true);
     setError(null);
     try {
+      // Use 1 credit for improvement
+      const creditResult = await useCredit(currentUser.uid, 'improve_resume');
+      if (!creditResult.success) {
+        throw new Error(creditResult.error);
+      }
+      setCredits(creditResult.credits);
+      
       const improved = await improveResume(analysisData);
       setImprovedData(improved);
       // Scroll to top to see the improved resume
@@ -157,9 +204,12 @@ const Home = () => {
                         <ArrowRight className="w-5 h-5 group-hover:translate-x-1 transition-transform" />
                       </Link>
                     )}
-                    <button className="px-8 py-4 rounded-2xl bg-white/5 border border-white/10 text-white font-bold hover:bg-white/10 transition-all">
+                    <Link
+                      to="/about"
+                      className="px-8 py-4 rounded-2xl bg-white/5 border border-white/10 text-white font-bold hover:bg-white/10 transition-all"
+                    >
                       Learn More
-                    </button>
+                    </Link>
                   </div>
                 </motion.div>
 
@@ -178,7 +228,15 @@ const Home = () => {
                     animate={{ opacity: 1 }}
                     className="mt-6 p-4 rounded-2xl bg-red-500/10 border border-red-500/20 text-red-400 text-center max-w-2xl mx-auto"
                   >
-                    {error}
+                    <div className="flex items-center justify-center gap-2">
+                      <Coins className="w-5 h-5" />
+                      <span>{error}</span>
+                    </div>
+                    {credits !== null && (
+                      <div className="mt-2 text-sm">
+                        Remaining credits: <span className="font-bold text-primary-400">{credits}</span>
+                      </div>
+                    )}
                   </motion.div>
                 )}
 

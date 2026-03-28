@@ -1,14 +1,39 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import { motion, AnimatePresence } from 'framer-motion';
-import { LogOut, User, Menu, X, Sparkles } from 'lucide-react';
+import { LogOut, User, Menu, X, Sparkles, Star, Coins } from 'lucide-react';
 import { useAuth } from '../context/AuthContext';
+import { getUserCredits } from '../services/firestore';
 
 export const Navbar = () => {
   const navigate = useNavigate();
   const { currentUser, logout } = useAuth();
   const [isMenuOpen, setIsMenuOpen] = useState(false);
   const [isLoggingOut, setIsLoggingOut] = useState(false);
+  const [credits, setCredits] = useState(0);
+
+  // Load user credits - poll every 5 seconds when user is logged in
+  useEffect(() => {
+    if (currentUser) {
+      // Immediate fetch
+      getUserCredits(currentUser.uid).then(result => {
+        if (result.success) {
+          setCredits(result.credits);
+        }
+      });
+      
+      // Poll every 5 seconds
+      const interval = setInterval(() => {
+        getUserCredits(currentUser.uid).then(result => {
+          if (result.success) {
+            setCredits(result.credits);
+          }
+        });
+      }, 5000);
+      
+      return () => clearInterval(interval);
+    }
+  }, [currentUser]);
 
   const handleLogout = async () => {
     setIsLoggingOut(true);
@@ -36,7 +61,7 @@ export const Navbar = () => {
           </Link>
 
           {/* Desktop Navigation */}
-          <div className="hidden md:flex items-center gap-8">
+          <div className="hidden md:flex items-center gap-6">
             <Link to="/" className="text-gray-400 hover:text-white transition-colors">
               Home
             </Link>
@@ -46,9 +71,23 @@ export const Navbar = () => {
             <Link to="/internships" className="text-gray-400 hover:text-white transition-colors">
               Internships
             </Link>
+            <Link to="/about" className="text-gray-400 hover:text-white transition-colors">
+              About
+            </Link>
+            {currentUser && (
+              <Link to="/saved-jobs" className="text-gray-400 hover:text-white transition-colors flex items-center gap-1">
+                <Star className="w-4 h-4" />
+                Saved Jobs
+              </Link>
+            )}
             
             {currentUser ? (
               <div className="flex items-center gap-4">
+                <div className="flex items-center gap-2 px-4 py-2 rounded-xl bg-primary-500/10 border border-primary-500/20">
+                  <Coins className="w-4 h-4 text-primary-400" />
+                  <span className="text-white font-bold">{credits}</span>
+                  <span className="text-gray-400 text-xs">credits</span>
+                </div>
                 <div className="flex items-center gap-3 px-4 py-2 rounded-xl bg-white/5 border border-white/10">
                   <div className="w-8 h-8 rounded-full bg-primary-500/20 flex items-center justify-center">
                     <User className="w-4 h-4 text-primary-400" />
@@ -123,6 +162,16 @@ export const Navbar = () => {
               >
                 Internships
               </Link>
+              {currentUser && (
+                <Link
+                  to="/saved-jobs"
+                  onClick={() => setIsMenuOpen(false)}
+                  className="block text-gray-400 hover:text-white transition-colors py-2 flex items-center gap-2"
+                >
+                  <Star className="w-4 h-4" />
+                  Saved Jobs
+                </Link>
+              )}
               
               {currentUser ? (
                 <>

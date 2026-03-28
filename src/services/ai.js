@@ -1,8 +1,8 @@
 import axios from 'axios';
 import { z } from 'zod';
 
-// OpenRouter API Key - from environment variable
-const OPENROUTER_API_KEY = import.meta.env.VITE_OPENROUTER_API_KEY || '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';
+// Backend API URL
+const BACKEND_URL = 'http://localhost:3001/api';
 
 const ResumeSchema = z.object({
   name: z.string(),
@@ -27,6 +27,9 @@ const cleanJSON = (text) => {
     .trim();
 };
 
+// ============================================================================
+// ANALYZE RESUME - Uses backend smart router
+// ============================================================================
 export const analyzeResume = async (resumeText) => {
   if (!resumeText || resumeText.trim().length < 50) {
     throw new Error("Resume text is too short or could not be extracted.");
@@ -36,33 +39,18 @@ export const analyzeResume = async (resumeText) => {
     Analyze the following resume text and provide a non-fraudulent ATS score (0-100) and professional improvement suggestions.
     Return ONLY valid JSON.
 
-    RULES:
-    - Do NOT include any introductory or concluding text.
-    - Use ONLY JSON format.
-    - Use "\\\\n" for internal line breaks if needed.
-    - Use "• " for bullet points in the experience section.
-    - Ensure all fields listed in the FORMAT are present.
-    - The 'points' array should contain clear bullet points.
-    - Score must be a number between 0 and 100 based on actual ATS readability and keywords.
-
     FORMAT:
     {
       "name": "Full Name",
       "summary": "Short professional summary",
       "ats_score": 85,
-      "suggestions": [
-        "Add more action verbs in the experience section",
-        "Include more industry-specific keywords like 'React', 'Agile', etc."
-      ],
+      "suggestions": ["Suggestion 1", "Suggestion 2"],
       "skills": ["Skill 1", "Skill 2"],
       "experience": [
         {
           "role": "Job Title",
           "company": "Company Name",
-          "points": [
-            "• Led a team of 5 developers",
-            "• Improved application performance by 30%"
-          ]
+          "points": ["• Bullet point 1", "• Bullet point 2"]
         }
       ],
       "education": ["Degree in Subject, University Name"]
@@ -73,88 +61,49 @@ export const analyzeResume = async (resumeText) => {
   `;
 
   try {
-    console.log("Sending request to OpenRouter...");
-    console.log("API Key starts with:", OPENROUTER_API_KEY.substring(0, 15) + "...");
+    console.log('[Frontend] Sending to backend for analysis...');
     
-    const response = await axios.post(
-      'https://openrouter.ai/api/v1/chat/completions',
-      {
-        model: 'openrouter/auto',
-        messages: [{ role: 'user', content: prompt }],
-        response_format: { type: "json_object" }
-      },
-      {
-        headers: {
-          'Authorization': `Bearer ${OPENROUTER_API_KEY}`,
-          'Content-Type': 'application/json',
-          'HTTP-Referer': 'http://localhost:5173',
-          'X-Title': 'Resumate',
-        },
-      }
-    );
+    const response = await axios.post(`${BACKEND_URL}/analyze`, {
+      prompt,
+      type: 'resume'
+    });
 
-    console.log("Full API Response:", response.data);
+    console.log('[Frontend] Backend response:', response.data);
 
-    // Check for API errors
-    if (response.data.error) {
-      throw new Error(response.data.error.message || "API request failed");
+    if (!response.data.success) {
+      throw new Error(response.data.error || 'Analysis failed');
     }
 
-    let content = response.data.choices[0].message.content;
-    if (!content) throw new Error("The AI returned an empty response. Please try again.");
-    const cleanedContent = cleanJSON(content);
+    console.log(`[Frontend] Success via ${response.data.provider}!`);
+    
+    const data = response.data.data;
+    return ResumeSchema.parse(data);
 
-    console.log("AI Response:", cleanedContent);
-
-    try {
-      const data = JSON.parse(cleanedContent);
-      return ResumeSchema.parse(data);
-    } catch (parseError) {
-      console.error("JSON Parsing/Validation Error:", parseError, "Content:", cleanedContent);
-      const match = cleanedContent.match(/\{[\s\S]*\}/);
-      if (match) {
-        try {
-          const repairedData = JSON.parse(match[0]);
-          return ResumeSchema.parse(repairedData);
-        } catch (e) {}
-      }
-      throw new Error("Failed to process the AI analysis. Please try again.");
-    }
   } catch (error) {
-    console.error("AI Analysis Error:", error);
-    console.error("Error Response:", error.response?.data);
-    console.error("Error Status:", error.response?.status);
-    console.error("Error Headers:", error.response?.headers);
+    console.error('[Frontend] Analysis error:', error);
     
-    if (error.response?.status === 401) {
-      const errorData = error.response?.data;
-      throw new Error(`API Key error: ${JSON.stringify(errorData)}`);
+    if (error.code === 'ERR_NETWORK') {
+      throw new Error(
+        'Cannot connect to backend server. Please make sure the backend is running:\n\n' +
+        '1. Open a new terminal\n' +
+        '2. cd server\n' +
+        '3. npm install\n' +
+        '4. npm run dev\n\n' +
+        'Then try again.'
+      );
     }
-    if (error.response?.status === 403) {
-      const errorData = error.response?.data;
-      throw new Error(`Access Forbidden: ${JSON.stringify(errorData)}. Check domain restrictions in OpenRouter dashboard.`);
-    }
-    if (error.response?.status === 429) throw new Error("Too many requests. Please wait a moment.");
-    if (error.response?.status === 402) throw new Error("API key has insufficient credits.");
-    if (error.response?.data?.error?.message) {
-      throw new Error(error.response.data.error.message);
-    }
+    
     throw error;
   }
 };
 
+// ============================================================================
+// IMPROVE RESUME
+// ============================================================================
 export const improveResume = async (originalData) => {
   const prompt = `
     Improve the following resume content to achieve a better ATS score and professional impact.
     Return ONLY valid JSON.
-
-    RULES:
-    - Do NOT include any introductory or concluding text.
-    - Use ONLY JSON format.
-    - Use "\\\\n" for internal line breaks.
-    - Use "• " for bullet points in the experience section.
-    - Optimize the summary and experience points with strong action verbs and relevant industry keywords.
-    - The improved version must have a significantly higher ATS score (90-100).
 
     ORIGINAL DATA:
     ${JSON.stringify(originalData, null, 2)}
@@ -170,10 +119,7 @@ export const improveResume = async (originalData) => {
         {
           "role": "Job Title",
           "company": "Company Name",
-          "points": [
-            "• Improved bullet point 1",
-            "• Improved bullet point 2"
-          ]
+          "points": ["• Improved bullet point 1", "• Improved bullet point 2"]
         }
       ],
       "education": ["Education details"]
@@ -181,71 +127,101 @@ export const improveResume = async (originalData) => {
   `;
 
   try {
-    console.log("Sending improvement request to OpenRouter...");
-    
-    const response = await axios.post(
-      'https://openrouter.ai/api/v1/chat/completions',
-      {
-        model: 'openrouter/auto',
-        messages: [{ role: 'user', content: prompt }],
-        response_format: { type: "json_object" }
-      },
-      {
-        headers: {
-          'Authorization': `Bearer ${OPENROUTER_API_KEY}`,
-          'Content-Type': 'application/json',
-          'HTTP-Referer': 'http://localhost:5173',
-          'X-Title': 'Resumate Improvement',
-        },
-      }
-    );
+    const response = await axios.post(`${BACKEND_URL}/analyze`, {
+      prompt,
+      type: 'improve'
+    });
 
-    console.log("Improvement API Response:", response.data);
-
-    // Check for API errors
-    if (response.data.error) {
-      throw new Error(response.data.error.message || "API request failed");
+    if (!response.data.success) {
+      throw new Error(response.data.error || 'Improvement failed');
     }
 
-    let content = response.data.choices[0].message.content;
-    if (!content) throw new Error("AI returned an empty improvement response.");
-    const cleanedContent = cleanJSON(content);
+    const data = response.data.data;
+    return ResumeSchema.parse(data);
 
-    console.log("AI Improvement Response:", cleanedContent);
-
-    try {
-      const data = JSON.parse(cleanedContent);
-      return ResumeSchema.parse(data);
-    } catch (parseError) {
-      console.error("Improvement JSON Error:", parseError, "Content:", cleanedContent);
-      const match = cleanedContent.match(/\{[\s\S]*\}/);
-      if (match) {
-        try {
-          const repairedData = JSON.parse(match[0]);
-          return ResumeSchema.parse(repairedData);
-        } catch (e) {}
-      }
-      throw new Error("Failed to process the improved resume. Please try again.");
-    }
   } catch (error) {
-    console.error("AI Improvement Error:", error);
-    console.error("Error Response:", error.response?.data);
-    console.error("Error Status:", error.response?.status);
-    
-    if (error.response?.status === 401) {
-      const errorData = error.response?.data;
-      throw new Error(`API Key error: ${JSON.stringify(errorData)}`);
-    }
-    if (error.response?.status === 403) {
-      const errorData = error.response?.data;
-      throw new Error(`Access Forbidden: ${JSON.stringify(errorData)}. Check domain restrictions.`);
-    }
-    if (error.response?.status === 429) throw new Error("Too many requests. Please wait a moment.");
-    if (error.response?.status === 402) throw new Error("API key has insufficient credits.");
-    if (error.response?.data?.error?.message) {
-      throw new Error(error.response.data.error.message);
+    console.error('[Frontend] Improvement error:', error);
+    if (error.code === 'ERR_NETWORK') {
+      throw new Error('Cannot connect to backend server. Please start it first.');
     }
     throw error;
   }
 };
 
+// ============================================================================
+// TAILOR RESUME FOR JOB
+// ============================================================================
+export const tailorResumeForJob = async (originalData, jobData) => {
+  const prompt = `
+    Tailor the following resume specifically for this job posting.
+    Return ONLY valid JSON.
+
+    JOB POSTING:
+    Title: ${jobData.title}
+    Company: ${jobData.company}
+    Description: ${jobData.description?.substring(0, 2000) || 'Not provided'}
+    Required Skills: ${jobData.tags?.join(', ') || 'Not specified'}
+
+    ORIGINAL RESUME:
+    ${JSON.stringify(originalData, null, 2)}
+
+    INSTRUCTIONS:
+    1. Analyze job description for keywords
+    2. Optimize resume to match job requirements
+    3. Use keywords from job description naturally
+    4. Rewrite summary to match job requirements
+    5. If candidate lacks experience, set hasRequiredExperience to false
+    6. List missing skills in missingSkills array
+
+    FORMAT:
+    {
+      "name": "Candidate Name",
+      "summary": "Tailored professional summary (2-3 sentences)",
+      "ats_score": 90,
+      "matchPercentage": 85,
+      "hasRequiredExperience": true,
+      "missingSkills": ["skill1", "skill2"],
+      "suggestions": ["What was tailored"],
+      "skills": ["Prioritized skills matching job"],
+      "experience": [
+        {
+          "role": "Job Title",
+          "company": "Company Name",
+          "points": ["• Tailored bullet point 1", "• Tailored bullet point 2"]
+        }
+      ],
+      "education": ["Education details"],
+      "tailoredFor": {
+        "jobTitle": "${jobData.title}",
+        "company": "${jobData.company}",
+        "keyKeywords": ["keyword1", "keyword2"]
+      }
+    }
+  `;
+
+  try {
+    const response = await axios.post(`${BACKEND_URL}/analyze`, {
+      prompt,
+      type: 'tailor'
+    });
+
+    if (!response.data.success) {
+      throw new Error(response.data.error || 'Tailoring failed');
+    }
+
+    const data = response.data.data;
+    
+    if (!data.name || !data.summary) {
+      throw new Error("Invalid resume data structure");
+    }
+    
+    return data;
+
+  } catch (error) {
+    console.error('[Frontend] Tailoring error:', error);
+    if (error.code === 'ERR_NETWORK') {
+      throw new Error('Cannot connect to backend server. Please start it first.');
+    }
+    throw error;
+  }
+};

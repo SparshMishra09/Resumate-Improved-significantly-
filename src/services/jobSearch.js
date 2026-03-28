@@ -165,11 +165,12 @@ export const searchJobs = async (params = {}) => {
     const { keyword = '', location = '', jobType = '', remote = false, source = 'all' } = params;
 
     let results = [];
+    const sourcesUsed = [];
 
     // 1. First get jobs from Firestore (your own database)
     try {
       const firestoreJobs = await getJobListings(50);
-      if (firestoreJobs.success && firestoreJobs.data) {
+      if (firestoreJobs.success && firestoreJobs.data && firestoreJobs.data.length > 0) {
         let firestoreJobsFiltered = firestoreJobs.data;
         
         // Apply filters
@@ -205,33 +206,50 @@ export const searchJobs = async (params = {}) => {
           ...job,
           source: 'Firestore',
         }))];
+        sourcesUsed.push(`Firestore: ${firestoreJobsFiltered.length} jobs`);
       }
     } catch (firestoreErr) {
       console.log('Firestore not available, using external APIs only');
     }
 
-    // 2. Get jobs from Arbeitnow
+    // 2. Get jobs from Arbeitnow (PRIMARY - most reliable)
     if (source === 'all' || source === 'arbeitnow') {
-      const arbeitnowResult = await fetchJobsFromArbeitnow({ keyword, location, remote, page: 1 });
-      if (arbeitnowResult.success && arbeitnowResult.data) {
-        let arbeitnowJobs = arbeitnowResult.data;
+      try {
+        // Fetch multiple pages for more results
+        const pages = [1, 2, 3]; // Fetch 3 pages
+        const arbeitnowPromises = pages.map(page => 
+          fetchJobsFromArbeitnow({ keyword, location, remote, page })
+        );
         
-        // Apply job type filter
-        if (jobType) {
-          arbeitnowJobs = arbeitnowJobs.filter(job =>
-            job.jobTypes && job.jobTypes.some(type => type.toLowerCase().includes(jobType.toLowerCase()))
-          );
+        const arbeitnowResults = await Promise.all(arbeitnowPromises);
+        
+        for (const result of arbeitnowResults) {
+          if (result.success && result.data) {
+            let arbeitnowJobs = result.data;
+            
+            // Apply job type filter
+            if (jobType) {
+              arbeitnowJobs = arbeitnowJobs.filter(job =>
+                job.jobTypes && job.jobTypes.some(type => type.toLowerCase().includes(jobType.toLowerCase()))
+              );
+            }
+            
+            results = [...results, ...arbeitnowJobs];
+          }
         }
         
-        results = [...results, ...arbeitnowJobs];
+        const arbeitnowCount = results.filter(j => j.source === 'Arbeitnow').length;
+        sourcesUsed.push(`Arbeitnow: ${arbeitnowCount} jobs`);
+      } catch (arbeitnowErr) {
+        console.error('Arbeitnow Error:', arbeitnowErr.message);
       }
     }
 
-    // 3. Get jobs from Adzuna (optional, may be slow)
+    // 3. Get jobs from Adzuna (OPTIONAL - may fail due to API limits)
     if (source === 'all' || source === 'adzuna') {
       try {
         const adzunaResult = await fetchJobsFromAdzuna({ keyword, location, page: 1 });
-        if (adzunaResult.success && adzunaResult.data) {
+        if (adzunaResult.success && adzunaResult.data && adzunaResult.data.length > 0) {
           let adzunaJobs = adzunaResult.data;
           
           // Apply filters
@@ -242,11 +260,17 @@ export const searchJobs = async (params = {}) => {
           }
           
           results = [...results, ...adzunaJobs];
+          sourcesUsed.push(`Adzuna: ${adzunaJobs.length} jobs`);
+        } else {
+          console.log('Adzuna: No results or API unavailable');
         }
       } catch (adzunaErr) {
-        console.log('Adzuna API unavailable, skipping');
+        console.log('Adzuna API unavailable (this is normal - using Arbeitnow only)');
+        console.log('Adzuna Error:', adzunaErr.message);
       }
     }
+
+    console.log('Sources used:', sourcesUsed);
 
     // Remove duplicates based on title + company
     const uniqueJobs = results.filter((job, index, self) =>
@@ -255,10 +279,13 @@ export const searchJobs = async (params = {}) => {
       )
     );
 
+    console.log('Total jobs after deduplication:', uniqueJobs.length);
+
     return {
       success: true,
       data: uniqueJobs,
       total: uniqueJobs.length,
+      sources: sourcesUsed,
       message: uniqueJobs.length === 0 ? 'No jobs found matching your criteria' : undefined,
     };
   } catch (error) {

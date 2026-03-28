@@ -1,8 +1,8 @@
 import React from 'react';
 import { motion } from 'framer-motion';
-import { MapPin, Briefcase, Clock, Building2, ExternalLink, Star, DollarSign } from 'lucide-react';
+import { MapPin, Briefcase, Clock, Building2, ExternalLink, Star, DollarSign, Link as LinkIcon } from 'lucide-react';
 
-export const JobCard = ({ job, onSelect, isSaved = false, onToggleSave }) => {
+export const JobCard = ({ job, onSelect, isSaved = false, onToggleSave, showTailorButton = false, onTailorClick }) => {
   const formatDate = (dateString) => {
     const date = new Date(dateString);
     const now = new Date();
@@ -45,19 +45,22 @@ export const JobCard = ({ job, onSelect, isSaved = false, onToggleSave }) => {
             </div>
           </div>
           
-          {onToggleSave && (
-            <button
-              onClick={(e) => {
-                e.stopPropagation();
-                onToggleSave(job);
-              }}
-              className="p-2 rounded-xl bg-white/5 hover:bg-primary-500/20 transition-colors"
-            >
-              <Star 
-                className={`w-5 h-5 ${isSaved ? 'fill-primary-400 text-primary-400' : 'text-gray-400'}`} 
-              />
-            </button>
-          )}
+          <div className="flex items-center gap-2">
+            {onToggleSave && (
+              <button
+                onClick={(e) => {
+                  e.stopPropagation();
+                  onToggleSave(job);
+                }}
+                className="p-2 rounded-xl bg-white/5 hover:bg-primary-500/20 transition-colors"
+                title={isSaved ? 'Remove from saved' : 'Save job'}
+              >
+                <Star 
+                  className={`w-5 h-5 ${isSaved ? 'fill-primary-400 text-primary-400' : 'text-gray-400'}`} 
+                />
+              </button>
+            )}
+          </div>
         </div>
 
         {/* Location & Type */}
@@ -104,8 +107,8 @@ export const JobCard = ({ job, onSelect, isSaved = false, onToggleSave }) => {
         )}
 
         {/* Footer */}
-        <div className="flex items-center justify-between pt-4 border-t border-white/5">
-          <div className="flex items-center gap-4">
+        <div className="flex items-center justify-between pt-4 border-t border-white/5 flex-wrap gap-3">
+          <div className="flex items-center gap-4 flex-wrap">
             <span className="text-xs text-gray-500">
               Source: {job.source || 'External'}
             </span>
@@ -120,16 +123,31 @@ export const JobCard = ({ job, onSelect, isSaved = false, onToggleSave }) => {
             )}
           </div>
           
-          <a
-            href={job.url}
-            target="_blank"
-            rel="noopener noreferrer"
-            onClick={(e) => e.stopPropagation()}
-            className="flex items-center gap-2 px-4 py-2 rounded-xl bg-primary-500/20 hover:bg-primary-500/30 text-primary-300 text-sm font-medium transition-colors"
-          >
-            Apply Now
-            <ExternalLink className="w-4 h-4" />
-          </a>
+          <div className="flex items-center gap-2">
+            {showTailorButton && onTailorClick && (
+              <button
+                onClick={(e) => {
+                  e.stopPropagation();
+                  onTailorClick(job);
+                }}
+                className="flex items-center gap-1.5 px-4 py-2 rounded-xl bg-primary-500/20 hover:bg-primary-500/30 text-primary-300 text-sm font-medium transition-colors"
+              >
+                <LinkIcon className="w-4 h-4" />
+                Tailor Resume
+              </button>
+            )}
+            
+            <a
+              href={job.url}
+              target="_blank"
+              rel="noopener noreferrer"
+              onClick={(e) => e.stopPropagation()}
+              className="flex items-center gap-2 px-4 py-2 rounded-xl bg-primary-500/20 hover:bg-primary-500/30 text-primary-300 text-sm font-medium transition-colors"
+            >
+              Apply Now
+              <ExternalLink className="w-4 h-4" />
+            </a>
+          </div>
         </div>
       </div>
     </motion.div>
