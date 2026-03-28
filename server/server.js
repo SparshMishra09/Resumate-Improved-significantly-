@@ -20,11 +20,11 @@ app.use(express.json({ limit: '10mb' }));
 
 // API Keys from environment
 const API_KEYS = {
-  gemini: process.env.VITE_GEMINI_API_KEY,
-  claude: process.env.VITE_CLAUDE_API_KEY,
-  groq: process.env.VITE_GROQ_API_KEY,  // Groq (fast, free)
-  grok: process.env.VITE_GROK_API_KEY,  // Grok/xAI (Elon's AI)
-  openrouter: process.env.VITE_OPENROUTER_API_KEY,
+  gemini: process.env.GEMINI_API_KEY,
+  claude: process.env.CLAUDE_API_KEY,
+  groq: process.env.GROQ_API_KEY,  // Groq (fast, free)
+  grok: process.env.GROK_API_KEY,  // Grok/xAI (Elon's AI)
+  openrouter: process.env.OPENROUTER_API_KEY,
 };
 
 console.log('='.repeat(60));
@@ -39,10 +39,11 @@ Object.entries(API_KEYS).forEach(([key, value]) => {
   }
 });
 console.log('[Backend] Full env check:');
-console.log('  VITE_GEMINI_API_KEY exists:', !!process.env.VITE_GEMINI_API_KEY);
-console.log('  VITE_CLAUDE_API_KEY exists:', !!process.env.VITE_CLAUDE_API_KEY);
-console.log('  VITE_GROK_API_KEY exists:', !!process.env.VITE_GROK_API_KEY);
-console.log('  VITE_OPENROUTER_API_KEY exists:', !!process.env.VITE_OPENROUTER_API_KEY);
+console.log('  GEMINI_API_KEY exists:', !!process.env.GEMINI_API_KEY);
+console.log('  CLAUDE_API_KEY exists:', !!process.env.CLAUDE_API_KEY);
+console.log('  GROQ_API_KEY exists:', !!process.env.GROQ_API_KEY);
+console.log('  GROK_API_KEY exists:', !!process.env.GROK_API_KEY);
+console.log('  OPENROUTER_API_KEY exists:', !!process.env.OPENROUTER_API_KEY);
 console.log('='.repeat(60));
 
 // Clean JSON helper

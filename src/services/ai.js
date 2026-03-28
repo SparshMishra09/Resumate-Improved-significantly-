@@ -1,8 +1,8 @@
 import axios from 'axios';
 import { z } from 'zod';
 
-// Backend API URL
-const BACKEND_URL = 'http://localhost:3001/api';
+// Backend API URL - Update this after deploying backend to Render/Railway
+const BACKEND_URL = import.meta.env.VITE_BACKEND_URL || 'http://localhost:3001';
 
 const ResumeSchema = z.object({
   name: z.string(),
@@ -62,7 +62,7 @@ export const analyzeResume = async (resumeText) => {
 
   try {
     console.log('[Frontend] Sending to backend for analysis...');
-    
+
     const response = await axios.post(`${BACKEND_URL}/analyze`, {
       prompt,
       type: 'resume'
